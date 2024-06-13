@@ -1,0 +1,7 @@
+[[resolver]]
+url = "https://beacon.spectre-network.org"
+enable = true
+
+[[resolver]]
+url = "http://127.0.0.1:8888"
+enable = false

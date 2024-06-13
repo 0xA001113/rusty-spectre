@@ -1,0 +1,275 @@
+name: Build and upload assets
+on:
+  release:
+    types: [ published ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            TARGET: linux-gnu/amd64
+          - os: ubuntu-latest
+            TARGET: linux-musl/amd64
+          - os: ubuntu-latest
+            TARGET: linux-gnu/aarch64
+          - os: ubuntu-latest
+            TARGET: linux-musl/aarch64
+          - os: windows-latest
+            TARGET: windows-gnu/amd64
+          - os: windows-latest
+            TARGET: windows-msvc/amd64
+          - os: macos-latest
+            TARGET: macos/amd64
+          - os: macos-latest
+            TARGET: macos/aarch64
+    name: Building, ${{ matrix.TARGET }}
+    steps:
+      - name: Fix CRLF on Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install Protoc
+        uses: taiki-e/install-action@v2
+        with:
+          tool: protoc
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install zig on linux
+        if: runner.os == 'Linux'
+        uses: goto-bus-stop/setup-zig@v2 # needed for cargo-zigbuild
+
+      - name: Build on Linux for ${{ matrix.TARGET }}
+        if: matrix.TARGET == 'linux-gnu/amd64'
+        run: |
+          rustup target add x86_64-unknown-linux-gnu
+          cargo install cargo-zigbuild
+          cargo --verbose zigbuild --bin spectred --bin simpa --bin rothschild --bin spectre-wallet --release --target x86_64-unknown-linux-gnu.2.27 # Use an older glibc version
+          mkdir bin || true
+          cp target/x86_64-unknown-linux-gnu/release/spectred bin/
+          cp target/x86_64-unknown-linux-gnu/release/simpa bin/
+          cp target/x86_64-unknown-linux-gnu/release/rothschild bin/
+          cp target/x86_64-unknown-linux-gnu/release/spectre-wallet bin/
+          archive="bin/rusty-spectre-${{ github.event.release.tag_name }}-linux-gnu-amd64.zip"
+          zip -r "${archive}" ./bin/*
+
+      - name: Build on Linux for ${{ matrix.TARGET }}
+        if: matrix.TARGET == 'linux-musl/amd64'
+        env:
+          RUSTFLAGS: -C target-feature=-crt-static
+
+        # We're using musl to make the binaries statically linked and portable
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          cargo install cargo-zigbuild
+          cargo --verbose zigbuild --bin spectred --bin simpa --bin rothschild --bin spectre-wallet --release --target x86_64-unknown-linux-musl
+          mkdir bin || true
+          cp target/x86_64-unknown-linux-musl/release/spectred bin/
+          cp target/x86_64-unknown-linux-musl/release/simpa bin/
+          cp target/x86_64-unknown-linux-musl/release/rothschild bin/
+          cp target/x86_64-unknown-linux-musl/release/spectre-wallet bin/
+          archive="bin/rusty-spectre-${{ github.event.release.tag_name }}-linux-musl-amd64.zip"
+          zip -r "${archive}" ./bin/*
+
+      - name: Build on Linux for ${{ matrix.TARGET }}
+        if: matrix.TARGET == 'linux-gnu/aarch64'
+        run: |
+          rustup target add aarch64-unknown-linux-gnu
+          cargo install cargo-zigbuild
+          cargo --verbose zigbuild --bin spectred --bin simpa --bin rothschild --bin spectre-wallet --release --target aarch64-unknown-linux-gnu.2.27 # Use an older glibc version
+          mkdir bin || true
+          cp target/aarch64-unknown-linux-gnu/release/spectred bin/
+          cp target/aarch64-unknown-linux-gnu/release/simpa bin/
+          cp target/aarch64-unknown-linux-gnu/release/rothschild bin/
+          cp target/aarch64-unknown-linux-gnu/release/spectre-wallet bin/
+          archive="bin/rusty-spectre-${{ github.event.release.tag_name }}-linux-gnu-aarch64.zip"
+          zip -r "${archive}" ./bin/*
+
+      - name: Build on Linux for ${{ matrix.TARGET }}
+        if: matrix.TARGET == 'linux-musl/aarch64'
+        env:
+          RUSTFLAGS: -C target-feature=-crt-static
+
+        # We're using musl to make the binaries statically linked and portable
+        run: |
+          rustup target add aarch64-unknown-linux-musl
+          cargo install cargo-zigbuild
+          cargo --verbose zigbuild --bin spectred --bin simpa --bin rothschild --bin spectre-wallet --release --target aarch64-unknown-linux-musl
+          mkdir bin || true
+          cp target/aarch64-unknown-linux-musl/release/spectred bin/
+          cp target/aarch64-unknown-linux-musl/release/simpa bin/
+          cp target/aarch64-unknown-linux-musl/release/rothschild bin/
+          cp target/aarch64-unknown-linux-musl/release/spectre-wallet bin/
+          archive="bin/rusty-spectre-${{ github.event.release.tag_name }}-linux-musl-aarch64.zip"
+          zip -r "${archive}" ./bin/*
+
+      - name: Build on Windows for ${{ matrix.TARGET }}
+        if: matrix.TARGET == 'windows-gnu/amd64'
+        shell: bash
+        run: |
+          rustup target add x86_64-pc-windows-gnullvm
+          cargo build --target x86_64-pc-windows-gnu --bin spectred --release
+          cargo build --target x86_64-pc-windows-gnu --bin simpa --release
+          cargo build --target x86_64-pc-windows-gnu --bin rothschild --release
+          cargo build --target x86_64-pc-windows-gnu --bin spectre-wallet --release
+          mkdir bin || true
+          cp target/x86_64-pc-windows-gnu/release/spectred.exe bin/
+          cp target/x86_64-pc-windows-gnu/release/simpa.exe bin/
+          cp target/x86_64-pc-windows-gnu/release/rothschild.exe bin/
+          cp target/x86_64-pc-windows-gnu/release/spectre-wallet.exe bin/
+          archive="bin/rusty-spectre-${{ github.event.release.tag_name }}-windows-gnu-amd64.zip"
+          powershell "Compress-Archive bin/* \"${archive}\""
+
+      - name: Build on Windows for ${{ matrix.TARGET }}
+        if: matrix.TARGET == 'windows-msvc/amd64'
+        shell: bash
+        run: |
+          rustup target add x86_64-pc-windows-msvc
+          cargo build --target x86_64-pc-windows-msvc --bin spectred --release
+          cargo build --target x86_64-pc-windows-msvc --bin simpa --release
+          cargo build --target x86_64-pc-windows-msvc --bin rothschild --release
+          cargo build --target x86_64-pc-windows-msvc --bin spectre-wallet --release
+          mkdir bin || true
+          cp target/x86_64-pc-windows-msvc/release/spectred.exe bin/
+          cp target/x86_64-pc-windows-msvc/release/simpa.exe bin/
+          cp target/x86_64-pc-windows-msvc/release/rothschild.exe bin/
+          cp target/x86_64-pc-windows-msvc/release/spectre-wallet.exe bin/
+          archive="bin/rusty-spectre-${{ github.event.release.tag_name }}-windows-msvc-amd64.zip"
+          powershell "Compress-Archive bin/* \"${archive}\""
+
+      - name: Build on macOS for ${{ matrix.TARGET }}
+        if: matrix.TARGET == 'macos/amd64'
+        run: |
+          rustup target add x86_64-apple-darwin
+          cargo build --target x86_64-apple-darwin --bin spectred --release
+          cargo build --target x86_64-apple-darwin --bin simpa --release
+          cargo build --target x86_64-apple-darwin --bin rothschild --release
+          cargo build --target x86_64-apple-darwin --bin spectre-wallet --release
+          mkdir bin || true
+          cp target/x86_64-apple-darwin/release/spectred bin/
+          cp target/x86_64-apple-darwin/release/simpa bin/
+          cp target/x86_64-apple-darwin/release/rothschild bin/
+          cp target/x86_64-apple-darwin/release/spectre-wallet bin/
+          archive="bin/rusty-spectre-${{ github.event.release.tag_name }}-macos-amd64.zip"
+          zip -r "${archive}" ./bin/*
+
+      - name: Build on macOS for ${{ matrix.TARGET }}
+        if: matrix.TARGET == 'macos/aarch64'
+        run: |
+          rustup target add aarch64-apple-darwin
+          cargo build --target aarch64-apple-darwin --bin spectred --release
+          cargo build --target aarch64-apple-darwin --bin simpa --release
+          cargo build --target aarch64-apple-darwin --bin rothschild --release
+          cargo build --target aarch64-apple-darwin --bin spectre-wallet --release
+          mkdir bin || true
+          cp target/aarch64-apple-darwin/release/spectred bin/
+          cp target/aarch64-apple-darwin/release/simpa bin/
+          cp target/aarch64-apple-darwin/release/rothschild bin/
+          cp target/aarch64-apple-darwin/release/spectre-wallet bin/
+          archive="bin/rusty-spectre-${{ github.event.release.tag_name }}-macos-aarch64.zip"
+          zip -r "${archive}" ./bin/*
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bin/*.zip
+
+  build-wasm:
+    runs-on: ubuntu-latest
+    name: Building WASM32 SDK
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install Protoc
+        uses: taiki-e/install-action@v2
+        with:
+          tool: protoc
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install llvm
+        id: install_llvm
+        continue-on-error: true
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          sudo apt-get install -y clang-15 lldb-15 lld-15 clangd-15 clang-tidy-15 clang-format-15 clang-tools-15 llvm-15-dev lld-15 lldb-15 llvm-15-tools libomp-15-dev libc++-15-dev libc++abi-15-dev libclang-common-15-dev libclang-15-dev libclang-cpp15-dev libunwind-15-dev
+          # Make Clang 15 default
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-15/bin/clang++ 100
+          sudo update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-15/bin/clang 100
+          sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/lib/llvm-15/bin/clang-format 100
+          sudo update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/lib/llvm-15/bin/clang-tidy 100
+          sudo update-alternatives --install /usr/bin/run-clang-tidy run-clang-tidy /usr/lib/llvm-15/bin/run-clang-tidy 100
+          # Alias cc to clang
+          sudo update-alternatives --install /usr/bin/cc cc /usr/lib/llvm-15/bin/clang 0
+          sudo update-alternatives --install /usr/bin/c++ c++ /usr/lib/llvm-15/bin/clang++ 0
+
+      - name: Install gcc-multilib
+        # gcc-multilib allows clang to find gnu libraries properly
+        run: sudo apt install -y gcc-multilib
+
+      - name: Install stable toolchain
+        if: steps.install_llvm.outcome == 'success' && steps.install_llvm.conclusion == 'success'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install NodeJS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install NodeJS dependencies
+        run: npm install --global typedoc typescript
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build WASM32 SDK
+        env:
+          TARGET_CC: clang
+          TARGET_CFLAGS: -I/usr/include
+        run: |
+          mkdir sdk || true
+          cd wasm
+          bash build-release
+          mv release/spectre-wasm32-sdk.zip ../sdk/spectre-wasm32-sdk-${{ github.event.release.tag_name }}.zip
+
+      - name: Upload WASM32 SDK
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            sdk/*.zip
