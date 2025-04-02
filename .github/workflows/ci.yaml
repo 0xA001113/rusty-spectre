@@ -15,7 +15,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install stable toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.83.0
 
       - name: Cache
         uses: actions/cache@v4
@@ -92,7 +92,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install stable toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.83.0
       
       - name: Set up cache
         uses: Swatinem/rust-cache@v2
@@ -144,7 +144,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install stable toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.83.0
         with:
           components: rustfmt, clippy
 
@@ -202,7 +202,7 @@ jobs:
 
       - name: Install stable toolchain
         if: steps.install_llvm.outcome == 'success' && steps.install_llvm.conclusion == 'success'
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.83.0
 
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
@@ -278,7 +278,7 @@ jobs:
 
       - name: Install stable toolchain
         if: steps.install_llvm.outcome == 'success' && steps.install_llvm.conclusion == 'success'
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.83.0
 
       - name: Install wasm-pack
         run: cargo install wasm-pack
@@ -335,7 +335,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install stable toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.83.0
 
       - name: Cache
         uses: actions/cache@v4
